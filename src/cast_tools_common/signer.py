@@ -6,14 +6,14 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 def prepare_firefox_staging(
     extension_dir: Path,
     staging_dir: Path,
     addon_id: str = "bridge@local.dev",
-    firefox_background_scripts: bool = True,
+    firefox_background_scripts: bool = False,
 ) -> Path:
     """Prepara un directorio temporal con el manifiesto adaptado según las reglas de firma de Mozilla."""
     if not extension_dir.exists():
@@ -73,9 +73,9 @@ def sign_firefox_addon(
     dry_run: bool = False,
     addon_id: str = "bridge@local.dev",
     addon_slug: str = "bridge",
-    firefox_background_scripts: bool = True,
-) -> Dict[str, object]:
-    """Valida sintácticamente y solicita la firma criptográfica en Mozilla Add-ons (AMO)."""
+    firefox_background_scripts: bool = False,
+) -> Dict[str, Any]:
+    """Ejecuta el flujo de validación y firma digital de la extensión mediante Mozilla web-ext."""
     if extension_dir is None:
         raise ValueError("extension_dir debe ser especificado.")
 
@@ -83,11 +83,8 @@ def sign_firefox_addon(
     out_path = output_dir or (ext_path.parent / "dist")
     out_path.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        staging_dir = Path(tmp_dir) / "staging"
-        artifacts_dir = Path(tmp_dir) / "artifacts"
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
-
+    with tempfile.TemporaryDirectory(prefix="web-ext-staging-") as temp_dir:
+        staging_dir = Path(temp_dir) / "extension"
         prepare_firefox_staging(
             ext_path,
             staging_dir,
@@ -95,39 +92,52 @@ def sign_firefox_addon(
             firefox_background_scripts=firefox_background_scripts,
         )
 
-        lint_success, lint_out = run_web_ext_lint(staging_dir)
-        if not lint_success and not dry_run:
-            return {
-                "success": False,
-                "output": f"Fallo en la validación de web-ext lint:\n{lint_out}",
-                "artifact": None
-            }
+        lint_ok, lint_output = run_web_ext_lint(staging_dir)
+        if not lint_ok and not lint_only:
+            raise RuntimeError(f"Fallo de validación web-ext lint:\n{lint_output}")
 
         if lint_only:
             return {
-                "success": lint_success,
-                "output": lint_out or "Validación sintáctica exitosa sin errores.",
-                "artifact": None
+                "status": "lint_passed" if lint_ok else "lint_failed",
+                "lint_output": lint_output,
+                "staging_dir": str(staging_dir)
             }
 
         key = api_key or os.environ.get("WEB_EXT_API_KEY") or os.environ.get("AMO_JWT_ISSUER")
         secret = api_secret or os.environ.get("WEB_EXT_API_SECRET") or os.environ.get("AMO_JWT_SECRET")
 
-        if not key or not secret:
-            if dry_run:
-                key = "dry-run-key"
-                secret = "dry-run-secret"
-            else:
-                return {
-                    "success": False,
-                    "output": "No se encontraron credenciales de Mozilla AMO (defina WEB_EXT_API_KEY y WEB_EXT_API_SECRET).",
-                    "artifact": None
-                }
+        if dry_run:
+            cmd_preview = [
+                "web-ext", "sign",
+                "--source-dir", str(staging_dir),
+                "--artifacts-dir", str(out_path),
+                "--api-key", key or "<AMO_API_KEY>",
+                "--api-secret", secret or "<AMO_API_SECRET>",
+                "--channel", channel,
+                "--timeout", str(timeout_ms),
+                "--no-config-discovery"
+            ]
+            return {
+                "status": "dry_run",
+                "lint_ok": lint_ok,
+                "command": " ".join(cmd_preview),
+                "credentials_present": bool(key and secret)
+            }
 
-        cmd = [
+        if not key or not secret:
+            raise ValueError(
+                "Credenciales de Mozilla AMO ausentes. Proporcioná --api-key y --api-secret "
+                "o definí las variables de entorno WEB_EXT_API_KEY y WEB_EXT_API_SECRET.\n"
+                "Podés generar tus claves en: https://addons.mozilla.org/developers/addon/api/key/"
+            )
+
+        artifacts_dir = Path(temp_dir) / "artifacts"
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+        sign_cmd = [
             "web-ext", "sign",
-            "-s", str(staging_dir),
-            "-a", str(artifacts_dir),
+            "--source-dir", str(staging_dir),
+            "--artifacts-dir", str(artifacts_dir),
             "--api-key", key,
             "--api-secret", secret,
             "--channel", channel,
@@ -135,22 +145,10 @@ def sign_firefox_addon(
             "--no-config-discovery"
         ]
 
-        if dry_run:
-            return {
-                "success": True,
-                "output": f"[DRY-RUN] Manifiesto preparado correctamente en {staging_dir}.\nComando a ejecutar:\n" + " ".join(cmd),
-                "artifact": None
-            }
-
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        combined_output = (proc.stdout or "") + ("\n" + proc.stderr if proc.stderr else "")
-
+        proc = subprocess.run(sign_cmd, capture_output=True, text=True)
         if proc.returncode != 0:
-            return {
-                "success": False,
-                "output": f"Error durante la firma en Mozilla AMO:\n{combined_output.strip()}",
-                "artifact": None
-            }
+            err_msg = (proc.stderr or "") + "\n" + (proc.stdout or "")
+            raise RuntimeError(f"Fallo en web-ext sign (código {proc.returncode}):\n{err_msg.strip()}")
 
         manifest_path = staging_dir / "manifest.json"
         with open(manifest_path, "r", encoding="utf-8") as f:
@@ -165,7 +163,8 @@ def sign_firefox_addon(
         shutil.copy2(signed_src, final_dest)
 
         return {
-            "success": True,
-            "output": combined_output.strip(),
-            "artifact": str(final_dest)
+            "status": "signed",
+            "signed_file": str(final_dest),
+            "channel": channel,
+            "raw_output": proc.stdout.strip()
         }
