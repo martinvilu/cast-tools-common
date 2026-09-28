@@ -1,6 +1,6 @@
 """cast-tools-common: Biblioteca compartida para herramientas de telemetría y control WebExtensions."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from cast_tools_common.discovery import (
     MdnsPublisher,
