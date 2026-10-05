@@ -30,6 +30,9 @@ dependencies = [
     "zeroconf>=0.151.3",
 ]
 
+[project.scripts]
+cast-sign = "cast_tools_common.firmar:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

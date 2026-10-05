@@ -68,3 +68,19 @@ Requiere [`web-ext`](https://extensionworkshop.com/documentation/develop/getting
 ## Licencia
 
 GPL-3.0-or-later.
+
+## Firmar las extensiones (`cast-sign`)
+
+`cast-sign` firma con `web-ext` las extensiones de Firefox de meet-tools y slide-tools (reemplaza a
+`scripts/sign_firefox_addons.sh`). Se corre desde el directorio que contiene los dos repositorios
+(o con `--raiz`):
+
+```bash
+cast-sign --all --dry-run          # valida y muestra el comando, sin enviar
+cast-sign --lint-only meet-tools   # solo web-ext lint
+cast-sign --channel unlisted slide-tools
+```
+
+Las credenciales de AMO salen de `--api-key`/`--api-secret`, de `WEB_EXT_API_KEY` y
+`WEB_EXT_API_SECRET` (o `AMO_JWT_ISSUER`/`AMO_JWT_SECRET`) o de un `.env` en la raíz.
+
