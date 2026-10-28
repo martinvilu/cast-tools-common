@@ -21,6 +21,7 @@ from cast_tools_common.seguridad import (
     generar_pin,
     origen_permitido,
     pin_correcto,
+    filtro_de_origen,
     rechazar_origen_web,
 )
 
@@ -212,3 +213,24 @@ def test_gestionar_atajos():
     assert atajos.gestionar(lista, "p1-meet-", "quitar", g, gnome=True) == ["✓ 1 atajos quitados."]
     otro = atajos.gestionar(lista, "p1-meet-", "instalar", g, gnome=False)
     assert "sólo funciona en GNOME" in otro[0] and "Ctrl+Alt+M" in otro[2]
+
+
+@pytest.mark.asyncio
+async def test_origen_extra_para_un_content_script():
+    """El content script de meet-tools abre el WebSocket con el origen de la página de Meet."""
+    async def eco(ws):
+        async for m in ws:
+            await ws.send(m)
+
+    meet = "https://meet.google.com"
+    assert origen_permitido(meet, [meet]) and not origen_permitido("https://otro.example", [meet])
+    local_meet = SimpleNamespace(remote_address=("127.0.0.1", 1), request=SimpleNamespace(headers={"Origin": meet}))
+    assert conexion_local_confiable(local_meet, [meet]) and not conexion_local_confiable(local_meet)
+    async with serve(eco, "127.0.0.1", 0, process_request=filtro_de_origen(meet)) as servidor:
+        puerto = servidor.sockets[0].getsockname()[1]
+        async with connect(f"ws://127.0.0.1:{puerto}", proxy=None, origin=meet) as ws:
+            await ws.send("x")
+            assert await ws.recv() == "x"
+        with pytest.raises(InvalidStatus):
+            async with connect(f"ws://127.0.0.1:{puerto}", proxy=None, origin="https://otro.example"):
+                pass

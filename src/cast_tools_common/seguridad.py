@@ -20,7 +20,7 @@ import secrets
 import time
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 ORIGENES_DE_EXTENSION = ("chrome-extension://", "moz-extension://", "safari-web-extension://")
 DURACION_TOKEN = 8 * 3600  # una jornada de clases
@@ -47,17 +47,25 @@ def es_loopback(ip: Optional[str]) -> bool:
         return ip == "localhost"
 
 
-def origen_permitido(origen: Optional[str]) -> bool:
-    """Sin `Origin` (un programa) o el de una extensión; nunca el de una página web."""
-    return origen is None or origen.startswith(ORIGENES_DE_EXTENSION)
+def origen_permitido(origen: Optional[str], extra: Sequence[str] = ()) -> bool:
+    """Sin `Origin` (un programa), el de una extensión o uno de `extra`; nunca otra página web.
+
+    `extra` es para una extensión que abre el WebSocket desde su content script: el navegador
+    manda el origen de la página donde corre (meet-tools: `https://meet.google.com`).
+    """
+    return origen is None or origen.startswith(ORIGENES_DE_EXTENSION) or origen in extra
 
 
-def rechazar_origen_web(connection: Any, request: Any) -> Any:
-    """`process_request` para `websockets.serve`: responde 403 a los WebSocket abiertos por una página."""
-    origen = request.headers.get("Origin")
-    if origen_permitido(origen):
-        return None
-    return connection.respond(HTTPStatus.FORBIDDEN, "Origen no permitido: sólo la extensión o clientes locales.\n")
+def filtro_de_origen(*extra: str) -> Callable[[Any, Any], Any]:
+    """`process_request` para `websockets.serve`: 403 a los WebSocket abiertos por otra página."""
+    def filtrar(connection: Any, request: Any) -> Any:
+        if origen_permitido(request.headers.get("Origin"), extra):
+            return None
+        return connection.respond(HTTPStatus.FORBIDDEN, "Origen no permitido: sólo la extensión o clientes locales.\n")
+    return filtrar
+
+
+rechazar_origen_web = filtro_de_origen()
 
 
 def ip_remota(websocket: Any) -> str:
@@ -74,9 +82,9 @@ def origen_de(websocket: Any) -> Optional[str]:
         return None
 
 
-def conexion_local_confiable(websocket: Any) -> bool:
+def conexion_local_confiable(websocket: Any, extra: Sequence[str] = ()) -> bool:
     """Un programa local (sin origen web): la CLI, un atajo de teclado, la bandeja o la extensión."""
-    return es_loopback(ip_remota(websocket)) and origen_permitido(origen_de(websocket))
+    return es_loopback(ip_remota(websocket)) and origen_permitido(origen_de(websocket), extra)
 
 
 @dataclass

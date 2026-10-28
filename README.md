@@ -76,8 +76,8 @@ Requiere [`web-ext`](https://extensionworkshop.com/documentation/develop/getting
 |:--|:--|
 | `generar_pin()` / `pin_correcto(recibido, esperado)` | PIN de 6 dígitos con `secrets`; comparación en tiempo constante. |
 | `TokensEfimeros(duracion=8 h)` | `emitir(cliente)` al emparejarse con el PIN, `validar(token)` al reconectarse, `revocar(token)`. En memoria: reiniciar el daemon los invalida. |
-| `rechazar_origen_web` | `process_request` para `websockets.serve`: responde 403 si el WebSocket lo abrió una página web (`Origin: https://…`). Un WebSocket a 127.0.0.1 lo puede abrir cualquier sitio que el docente tenga abierto; sólo se aceptan programas (sin `Origin`) y extensiones. |
-| `conexion_local_confiable(ws)` | Conexión desde loopback sin origen web: la CLI, un atajo, la bandeja o la extensión. No necesita PIN; el PIN protege la red del aula. |
+| `rechazar_origen_web` / `filtro_de_origen(*extra)` | `process_request` para `websockets.serve`: responde 403 si el WebSocket lo abrió una página web (`Origin: https://…`). Un WebSocket a 127.0.0.1 lo puede abrir cualquier sitio que el docente tenga abierto; sólo se aceptan programas (sin `Origin`), extensiones y los orígenes de `extra` (una extensión que conecta desde su content script manda el de la página: `https://meet.google.com`). |
+| `conexion_local_confiable(ws, extra=())` | Conexión desde loopback sin origen web: la CLI, un atajo, la bandeja o la extensión. No necesita PIN; el PIN protege la red del aula. |
 | `LimitadorIntentos(maximo=5, ventana=60)` | Bloquea una IP tras cinco PIN equivocados en un minuto. |
 
 ### Reconexión, registro, atajos y bandeja
