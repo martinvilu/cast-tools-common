@@ -84,7 +84,7 @@ Requiere [`web-ext`](https://extensionworkshop.com/documentation/develop/getting
 
 - `esperas(inicial, maximo, azar)` y `await con_reintentos(conectar, reintentos)`: 0,5 s, 1 s, 2 s… con ±20 % de azar, para que los clientes no reintenten todos a la vez cuando se corta la red.
 - `configurar_registro(herramienta)`: terminal y `$XDG_STATE_HOME/p1/cast.log` (por omisión `~/.local/state/p1/cast.log`), rotado a 1 MB con tres copias; cada línea lleva la herramienta.
-- `atajos.instalar(atajos)`, `atajos.quitar(prefijo)`, `atajos.instalados(prefijo)`: atajos personalizados de GNOME bajo rutas `p1-…`, sin tocar los del usuario. Bajo Wayland ningún programa puede capturar teclas globales; lo hace el escritorio.
+- `atajos.gestionar(atajos, prefijo, accion)` (mostrar, instalar o quitar; devuelve el texto para la terminal), `atajos.instalar(atajos)`, `atajos.quitar(prefijo)`, `atajos.instalados(prefijo)`: atajos personalizados de GNOME bajo rutas `p1-…`, sin tocar los del usuario. Bajo Wayland ningún programa puede capturar teclas globales; lo hace el escritorio.
 - `bandeja.correr(titulo, uri, evaluar)`: círculo verde (navegador conectado), amarillo (daemon sin navegador) o gris (sin daemon). Con `pip install 'cast-tools-common[bandeja]'` usa pystray (en GNOME, con la extensión «AppIndicator and KStatusNotifierItem Support»); sin él, avisa cada cambio con `notify-send`.
 
 ## Licencia

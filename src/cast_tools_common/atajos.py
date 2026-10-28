@@ -18,7 +18,7 @@ import shlex
 import shutil
 import subprocess
 from dataclasses import dataclass
-from typing import Callable, List, Sequence
+from typing import Callable, List, Optional, Sequence
 
 ESQUEMA = "org.gnome.settings-daemon.plugins.media-keys"
 ESQUEMA_ATAJO = "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding"
@@ -102,3 +102,23 @@ def legible(combinacion: str) -> str:
     partes = [nombres.get(m, m) for m in combinacion.replace(">", "<").split("<") if m]
     *mods, tecla = partes
     return "+".join([*mods, tecla.upper() if len(tecla) == 1 else tecla])
+
+
+def gestionar(atajos: Sequence[Atajo], prefijo: str, accion: str = "mostrar",
+              ejecutar: Ejecutor = gsettings, gnome: Optional[bool] = None) -> List[str]:
+    """`accion`: mostrar, instalar o quitar. Devuelve las líneas para la terminal."""
+    gnome = es_gnome() if gnome is None else gnome
+    lineas = [f"{legible(a.combinacion):<22} {a.nombre:<28} {a.comando}" for a in atajos]
+    if accion == "mostrar":
+        if gnome:
+            estado = "instalados" if instalados(prefijo, ejecutar) else "sin instalar (usá --instalar)"
+            return [*lineas, "", f"En GNOME: {estado}."]
+        return [*lineas, "", "Este escritorio no es GNOME: cargá estos comandos como atajos de teclado "
+                             "personalizados en su configuración."]
+    if not gnome:
+        return ["Instalar y quitar atajos sólo funciona en GNOME: cargá los comandos a mano.", "", *lineas]
+    if accion == "instalar":
+        instalar(atajos, ejecutar)
+        return [*lineas, "", f"✓ {len(atajos)} atajos instalados en GNOME (Configuración → Teclado → Atajos personalizados)."]
+    cantidad = quitar(prefijo, ejecutar)
+    return [f"✓ {cantidad} atajos quitados."]

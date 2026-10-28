@@ -201,3 +201,14 @@ async def test_la_bandeja_sigue_al_daemon():
         await asyncio.wait_for(bandeja.vigilar(f"ws://127.0.0.1:{puerto}", lambda p: (bool(p.get("inCall")), ""),
                                                al_cambiar, detener=detener), timeout=10)
     assert estados == ["sin_navegador", "conectado", "sin_daemon"]
+
+
+def test_gestionar_atajos():
+    g = FalsoGsettings()
+    lista = [atajos.Atajo("p1-meet-mic", "Meet: micrófono", "meet-tools mic", "<Control><Alt>m")]
+    assert "sin instalar" in "\n".join(atajos.gestionar(lista, "p1-meet-", "mostrar", g, gnome=True))
+    assert "✓ 1 atajos instalados" in "\n".join(atajos.gestionar(lista, "p1-meet-", "instalar", g, gnome=True))
+    assert "En GNOME: instalados." in atajos.gestionar(lista, "p1-meet-", "mostrar", g, gnome=True)
+    assert atajos.gestionar(lista, "p1-meet-", "quitar", g, gnome=True) == ["✓ 1 atajos quitados."]
+    otro = atajos.gestionar(lista, "p1-meet-", "instalar", g, gnome=False)
+    assert "sólo funciona en GNOME" in otro[0] and "Ctrl+Alt+M" in otro[2]
