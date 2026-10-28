@@ -28,6 +28,16 @@ classifiers = [
 dependencies = [
     "qrcode>=8.2",
     "zeroconf>=0.151.3",
+    # API asyncio (servidor y cliente) que usan los daemons, la bandeja y el filtro de origen.
+    "websockets>=13.0",
+]
+
+[project.optional-dependencies]
+# Indicador en la bandeja del sistema (`meet-tools bandeja`, `slide-tools bandeja`). Sin esto,
+# la bandeja avisa los cambios con notificaciones de escritorio.
+bandeja = [
+    "pystray>=0.19",
+    "pillow>=10.0",
 ]
 
 [project.scripts]

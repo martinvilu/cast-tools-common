@@ -16,6 +16,11 @@ dependencies = [
 - `discovery`: Obtención de IP local, generación de URIs de emparejamiento, renderizado QR (ASCII y SVG) y publicación de servicios mDNS/DNS-SD (`MdnsPublisher`).
 - `packer`: Empaquetado parametrizado para distribución en Chrome (.zip con Service Worker) y Firefox (.xpi/.zip con Background Scripts y Gecko ID).
 - `signer`: Staging, validación sintáctica (`web-ext lint`) y firma digital en Mozilla Add-ons (`web-ext sign`).
+- `seguridad`: PIN, tokens de reconexión que vencen, filtro de origen web y límite de intentos para los daemons.
+- `reconexion`: espera exponencial con azar para los clientes.
+- `registro`: registro rotativo común en `~/.local/state/p1/cast.log`.
+- `atajos`: atajos de teclado globales (GNOME) que corren los comandos de una sola vez.
+- `bandeja`: indicador de estado en la bandeja del sistema (extra opcional `bandeja`).
 
 ## API
 
@@ -64,6 +69,23 @@ Las credenciales de Mozilla AMO se pasan como argumentos o por las variables de 
 
 Requiere [`web-ext`](https://extensionworkshop.com/documentation/develop/getting-started-with-web-ext/)
 (`npm install --global web-ext`) para lint y firma; el empaquetado no lo necesita.
+
+### Emparejamiento seguro (`seguridad`)
+
+| Función / clase | Qué hace |
+|:--|:--|
+| `generar_pin()` / `pin_correcto(recibido, esperado)` | PIN de 6 dígitos con `secrets`; comparación en tiempo constante. |
+| `TokensEfimeros(duracion=8 h)` | `emitir(cliente)` al emparejarse con el PIN, `validar(token)` al reconectarse, `revocar(token)`. En memoria: reiniciar el daemon los invalida. |
+| `rechazar_origen_web` | `process_request` para `websockets.serve`: responde 403 si el WebSocket lo abrió una página web (`Origin: https://…`). Un WebSocket a 127.0.0.1 lo puede abrir cualquier sitio que el docente tenga abierto; sólo se aceptan programas (sin `Origin`) y extensiones. |
+| `conexion_local_confiable(ws)` | Conexión desde loopback sin origen web: la CLI, un atajo, la bandeja o la extensión. No necesita PIN; el PIN protege la red del aula. |
+| `LimitadorIntentos(maximo=5, ventana=60)` | Bloquea una IP tras cinco PIN equivocados en un minuto. |
+
+### Reconexión, registro, atajos y bandeja
+
+- `esperas(inicial, maximo, azar)` y `await con_reintentos(conectar, reintentos)`: 0,5 s, 1 s, 2 s… con ±20 % de azar, para que los clientes no reintenten todos a la vez cuando se corta la red.
+- `configurar_registro(herramienta)`: terminal y `$XDG_STATE_HOME/p1/cast.log` (por omisión `~/.local/state/p1/cast.log`), rotado a 1 MB con tres copias; cada línea lleva la herramienta.
+- `atajos.instalar(atajos)`, `atajos.quitar(prefijo)`, `atajos.instalados(prefijo)`: atajos personalizados de GNOME bajo rutas `p1-…`, sin tocar los del usuario. Bajo Wayland ningún programa puede capturar teclas globales; lo hace el escritorio.
+- `bandeja.correr(titulo, uri, evaluar)`: círculo verde (navegador conectado), amarillo (daemon sin navegador) o gris (sin daemon). Con `pip install 'cast-tools-common[bandeja]'` usa pystray (en GNOME, con la extensión «AppIndicator and KStatusNotifierItem Support»); sin él, avisa cada cambio con `notify-send`.
 
 ## Licencia
 
